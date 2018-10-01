@@ -104,6 +104,8 @@ type URLSignature struct {
 }
 
 func main() {
+	fmt.Println("Running Imaginary Server...")
+	
 	flag.Usage = func() {
 		fmt.Fprint(os.Stderr, fmt.Sprintf(usage, Version, runtime.NumCPU()))
 	}
