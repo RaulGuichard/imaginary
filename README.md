@@ -77,7 +77,7 @@ To get started, take a look the [installation](#installation) steps, [usage](#co
 ## Installation
 
 ```bash
-go get -u github.com/h2non/imaginary
+go get -u github.com/RaulGuichard/imaginary
 ```
 
 Also, be sure you have the latest version of `bimg`:
