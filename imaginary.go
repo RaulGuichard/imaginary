@@ -100,12 +100,11 @@ Options:
 `
 
 type URLSignature struct {
-	Key  string
+	Key string
 }
 
 func main() {
-	fmt.Println("Running Imaginary Server...")
-	
+
 	flag.Usage = func() {
 		fmt.Fprint(os.Stderr, fmt.Sprintf(usage, Version, runtime.NumCPU()))
 	}
@@ -123,6 +122,8 @@ func main() {
 
 	port := getPort(*aPort)
 	urlSignature := getURLSignature(*aURLSignatureKey)
+
+	fmt.Println("Running Imaginary Server on port " + port + "...")
 
 	opts := ServerOptions{
 		Port:               port,
