@@ -123,7 +123,7 @@ func main() {
 	port := getPort(*aPort)
 	urlSignature := getURLSignature(*aURLSignatureKey)
 
-	fmt.Println("Running Imaginary Server on port " + port + "...")
+	fmt.Println(fmt.Sprintf("Running Imaginary Server on port %d...", port))
 
 	opts := ServerOptions{
 		Port:               port,
