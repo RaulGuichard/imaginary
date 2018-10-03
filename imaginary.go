@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/allegro/bigcache"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -13,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	bimg "gopkg.in/h2non/bimg.v1"
+	"gopkg.in/h2non/bimg.v1"
 )
 
 var (
@@ -102,6 +103,8 @@ Options:
 type URLSignature struct {
 	Key string
 }
+
+var cache, _ = bigcache.NewBigCache(bigcache.DefaultConfig(10 * time.Minute))
 
 func main() {
 

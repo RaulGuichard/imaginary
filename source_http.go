@@ -3,13 +3,10 @@ package main
 import (
 	"crypto/md5"
 	"fmt"
-	"github.com/allegro/bigcache"
-	"github.com/gregjones/httpcache"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
-	"time"
 )
 
 const ImageSourceTypeHttp ImageSourceType = "http"
@@ -62,8 +59,6 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 	fmt.Println(fmt.Sprintf("Fetching new image %s", url.String()))
 	fmt.Println(fmt.Sprintf("Hash: %s", url_hash))
 
-	cache, _ := bigcache.NewBigCache(bigcache.DefaultConfig(10 * time.Minute))
-
 	image, _ := cache.Get(url_hash)
 
 	if image != nil {
@@ -74,8 +69,7 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 
 	// Perform the request using the default client
 	req := newHTTPRequest(s, ireq, "GET", url)
-	tp := httpcache.NewMemoryCacheTransport()
-	res, err := tp.Client().Do(req)
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Error downloading image: %v", err)
 	}
