@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/md5"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -58,8 +57,8 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 	fmt.Println(fmt.Sprintf("Fetching new image %s", url))
 
 	h := md5.New()
-	io.WriteString(h, url.RequestURI())
-	fmt.Printf("Hash: %d", h.Sum(nil))
+
+	fmt.Printf("Hash: %d", h.Sum([]byte(url.RequestURI())))
 
 	// Perform the request using the default client
 	req := newHTTPRequest(s, ireq, "GET", url)
