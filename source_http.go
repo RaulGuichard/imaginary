@@ -63,6 +63,7 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 
 	if image != nil {
 		fmt.Println("Existe el archivo")
+		return image, nil
 	} else {
 		fmt.Println("No existe el archivo...")
 	}
