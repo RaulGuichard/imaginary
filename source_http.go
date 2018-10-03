@@ -3,7 +3,7 @@ package main
 import (
 	"crypto/md5"
 	"fmt"
-	"github.com/patrickmn/go-cache"
+	"github.com/allegro/bigcache"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -61,14 +61,14 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 	fmt.Println(fmt.Sprintf("Fetching new image %s", url.String()))
 	fmt.Println(fmt.Sprintf("Hash: %s", url_hash))
 
-	c := cache.New(12*time.Hour, 6*time.Hour)
+	cache, _ := bigcache.NewBigCache(bigcache.DefaultConfig(10 * time.Minute))
 
-	image, found := c.Get(url_hash)
-	if found {
-		fmt.Println("Si existe en cache!!")
-		fmt.Println(image)
+	image, _ := cache.Get(url_hash)
+
+	if image != nil {
+		fmt.Println("Cache existe!")
 	} else {
-		fmt.Println("No existe en cache...")
+		fmt.Println("Cache no existe...")
 	}
 
 	// Perform the request using the default client
@@ -87,7 +87,7 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create image from response body: %s (url=%s)", req.URL.String(), err)
 	}
-	c.Set(url_hash, buf, cache.DefaultExpiration)
+	cache.Set(url_hash, buf)
 	return buf, nil
 
 }
