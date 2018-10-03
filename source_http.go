@@ -2,8 +2,8 @@ package main
 
 import (
 	"crypto/md5"
+	"encoding/hex"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -56,12 +56,7 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 	}
 
 	fmt.Println(fmt.Sprintf("Fetching new image %s", url.RawPath))
-
-	h := md5.New()
-
-	io.WriteString(h, url.RawPath)
-
-	fmt.Printf("Hash: %s", h.Sum(nil))
+	fmt.Printf("Hash: %s", GetMD5Hash(url.RawPath))
 
 	// Perform the request using the default client
 	req := newHTTPRequest(s, ireq, "GET", url)
@@ -80,6 +75,12 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 		return nil, fmt.Errorf("Unable to create image from response body: %s (url=%s)", req.URL.String(), err)
 	}
 	return buf, nil
+}
+
+func GetMD5Hash(text string) string {
+	hasher := md5.New()
+	hasher.Write([]byte(text))
+	return hex.EncodeToString(hasher.Sum(nil))
 }
 
 func (s *HttpImageSource) setAuthorizationHeader(req *http.Request, ireq *http.Request) {
