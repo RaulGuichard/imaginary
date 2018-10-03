@@ -55,8 +55,8 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 		}
 	}
 
-	fmt.Println(fmt.Sprintf("Fetching new image %s", url.RawPath))
-	fmt.Println(fmt.Sprintf("Hash: %s", GetMD5Hash(url.RawPath)))
+	fmt.Println(fmt.Sprintf("Fetching new image %s", url.String()))
+	fmt.Println(fmt.Sprintf("Hash: %s", GetMD5Hash(url.String())))
 
 	// Perform the request using the default client
 	req := newHTTPRequest(s, ireq, "GET", url)
