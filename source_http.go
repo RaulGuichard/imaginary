@@ -3,10 +3,12 @@ package main
 import (
 	"crypto/md5"
 	"fmt"
+	"github.com/allegro/bigcache"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 const ImageSourceTypeHttp ImageSourceType = "http"
@@ -59,13 +61,14 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 	fmt.Println(fmt.Sprintf("Fetching new image %s", url.String()))
 	fmt.Println(fmt.Sprintf("Hash: %s", url_hash))
 
-	image, _ := ioutil.ReadFile(fmt.Sprintf("/usr/share/imaginary/source/%s", url_hash))
+	cache, _ := bigcache.NewBigCache(bigcache.DefaultConfig(10 * time.Minute))
+
+	image, _ := cache.Get(url_hash)
 
 	if image != nil {
-		fmt.Println("Existe el archivo")
-		return image, nil
+		fmt.Println("Cache existe!")
 	} else {
-		fmt.Println("No existe el archivo...")
+		fmt.Println("Cache no existe...")
 	}
 
 	// Perform the request using the default client
@@ -84,8 +87,15 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create image from response body: %s (url=%s)", req.URL.String(), err)
 	}
+	cache.Set(url_hash, buf)
 
-	ioutil.WriteFile(fmt.Sprintf("/usr/share/imaginary/source/%s", url_hash), buf, 0644)
+	image, _ := cache.Get(url_hash)
+
+	if image != nil {
+		fmt.Println("DESPUES DE SETEAR > Cache existe!")
+	} else {
+		fmt.Println("DESPUES DE SETEAR > Cache no existe...")
+	}
 
 	return buf, nil
 
