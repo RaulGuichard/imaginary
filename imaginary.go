@@ -104,16 +104,7 @@ type URLSignature struct {
 	Key string
 }
 
-var cache, _ = bigcache.NewBigCache(bigcache.Config{
-	// time after which entry can be evicted
-	LifeWindow: 60 * time.Minute,
-	// prints information about additional memory allocation
-	Verbose: false,
-	// cache will not allocate more memory than this limit, value in MB
-	// if value is reached then the oldest entries can be overridden for the new ones
-	// 0 value means no size limit
-	HardMaxCacheSize: 1536,
-})
+var cache, _ = bigcache.NewBigCache(bigcache.DefaultConfig(168 * time.Hour))
 
 func main() {
 
