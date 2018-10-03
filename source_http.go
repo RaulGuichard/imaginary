@@ -68,7 +68,7 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 		fmt.Println("Si existe en cache!!")
 		fmt.Println(image)
 	} else {
-
+		fmt.Println("No existe en cache...")
 	}
 
 	// Perform the request using the default client
