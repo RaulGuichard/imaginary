@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"github.com/allegro/bigcache"
+	"github.com/gregjones/httpcache"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -73,7 +74,8 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 
 	// Perform the request using the default client
 	req := newHTTPRequest(s, ireq, "GET", url)
-	res, err := http.DefaultClient.Do(req)
+	tp := httpcache.NewMemoryCacheTransport()
+	res, err := http.Client{Transport: tp}.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Error downloading image: %v", err)
 	}
