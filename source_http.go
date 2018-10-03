@@ -2,12 +2,13 @@ package main
 
 import (
 	"crypto/md5"
-	"encoding/hex"
 	"fmt"
+	"github.com/patrickmn/go-cache"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 const ImageSourceTypeHttp ImageSourceType = "http"
@@ -55,8 +56,20 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 		}
 	}
 
+	url_hash := GetMD5Hash(url.String())
+
 	fmt.Println(fmt.Sprintf("Fetching new image %s", url.String()))
-	fmt.Println(fmt.Sprintf("Hash: %s", GetMD5Hash(url.String())))
+	fmt.Println(fmt.Sprintf("Hash: %s", url_hash))
+
+	c := cache.New(12*time.Hour, 6*time.Hour)
+
+	image, found := c.Get(url_hash)
+	if found {
+		fmt.Println("Si existe en cache!!")
+		fmt.Println(image)
+	} else {
+
+	}
 
 	// Perform the request using the default client
 	req := newHTTPRequest(s, ireq, "GET", url)
@@ -74,13 +87,13 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create image from response body: %s (url=%s)", req.URL.String(), err)
 	}
+	c.Set(url_hash, buf, cache.DefaultExpiration)
 	return buf, nil
+
 }
 
-func GetMD5Hash(text string) string {
-	hasher := md5.New()
-	hasher.Write([]byte(text))
-	return hex.EncodeToString(hasher.Sum(nil))
+func GetMD5Hash(s string) string {
+	return fmt.Sprintf("%x", md5.Sum([]byte(s)))
 }
 
 func (s *HttpImageSource) setAuthorizationHeader(req *http.Request, ireq *http.Request) {
