@@ -36,6 +36,7 @@ func (s *HttpImageSource) GetImage(req *http.Request) ([]byte, error) {
 func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, error) {
 	// Check remote image size by fetching HTTP Headers
 	if s.Config.MaxAllowedSize > 0 {
+		fmt.Println("Making a headers-only request to check the size of the image...")
 		req := newHTTPRequest(s, ireq, "HEAD", url)
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -51,6 +52,8 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 			return nil, fmt.Errorf("Content-Length %d exceeds maximum allowed %d bytes", contentLength, s.Config.MaxAllowedSize)
 		}
 	}
+
+	fmt.Println(fmt.Sprintf("Fetching new image %s", url))
 
 	// Perform the request using the default client
 	req := newHTTPRequest(s, ireq, "GET", url)
