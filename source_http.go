@@ -89,7 +89,7 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 	}
 	cache.Set(url_hash, buf)
 
-	image, _ := cache.Get(url_hash)
+	image, _ = cache.Get(url_hash)
 
 	if image != nil {
 		fmt.Println("DESPUES DE SETEAR > Cache existe!")
