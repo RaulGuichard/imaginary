@@ -75,7 +75,7 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 	// Perform the request using the default client
 	req := newHTTPRequest(s, ireq, "GET", url)
 	tp := httpcache.NewMemoryCacheTransport()
-	res, err := (http.Client{Transport: tp}).Do(req)
+	res, err := tp.Client().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Error downloading image: %v", err)
 	}
