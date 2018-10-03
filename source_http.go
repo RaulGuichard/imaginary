@@ -54,46 +54,37 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 		}
 	}
 
-	url_hash := GetMD5Hash(url.String())
-
-	fmt.Println(fmt.Sprintf("Fetching new image %s", url.String()))
-	fmt.Println(fmt.Sprintf("Hash: %s", url_hash))
+	url_string := url.String()
+	url_hash := GetMD5Hash(url_string)
 
 	image, _ := cache.Get(url_hash)
 
 	if image != nil {
 		fmt.Println("Cache existe!")
+		return image, nil
 	} else {
 		fmt.Println("Cache no existe...")
-	}
+		// Perform the request using the default client
+		debug(fmt.Sprintf("Fetching new image %s", url.String()))
+		req := newHTTPRequest(s, ireq, "GET", url)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("Error downloading image: %v", err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != 200 {
+			return nil, fmt.Errorf("Error downloading image: (status=%d) (url=%s)", res.StatusCode, req.URL.String())
+		}
 
-	// Perform the request using the default client
-	req := newHTTPRequest(s, ireq, "GET", url)
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("Error downloading image: %v", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("Error downloading image: (status=%d) (url=%s)", res.StatusCode, req.URL.String())
-	}
+		// Read the body
+		buf, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return nil, fmt.Errorf("Unable to create image from response body: %s (url=%s)", req.URL.String(), err)
+		}
+		cache.Set(url_hash, buf)
 
-	// Read the body
-	buf, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to create image from response body: %s (url=%s)", req.URL.String(), err)
+		return buf, nil
 	}
-	cache.Set(url_hash, buf)
-
-	image, _ = cache.Get(url_hash)
-
-	if image != nil {
-		fmt.Println("DESPUES DE SETEAR > Cache existe!")
-	} else {
-		fmt.Println("DESPUES DE SETEAR > Cache no existe...")
-	}
-
-	return buf, nil
 
 }
 
