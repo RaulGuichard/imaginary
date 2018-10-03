@@ -60,10 +60,8 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 	image, _ := cache.Get(url_hash)
 
 	if image != nil {
-		fmt.Println("Cache existe!")
 		return image, nil
 	} else {
-		fmt.Println("Cache no existe...")
 		// Perform the request using the default client
 		debug(fmt.Sprintf("Fetching new image %s", url.String()))
 		req := newHTTPRequest(s, ireq, "GET", url)
@@ -82,7 +80,6 @@ func (s *HttpImageSource) fetchImage(url *url.URL, ireq *http.Request) ([]byte, 
 			return nil, fmt.Errorf("Unable to create image from response body: %s (url=%s)", req.URL.String(), err)
 		}
 		cache.Set(url_hash, buf)
-
 		return buf, nil
 	}
 

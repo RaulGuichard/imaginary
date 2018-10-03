@@ -104,7 +104,7 @@ type URLSignature struct {
 	Key string
 }
 
-var cache, _ = bigcache.NewBigCache(bigcache.DefaultConfig(10 * time.Minute))
+var cache, _ = bigcache.NewBigCache(bigcache.DefaultConfig(168 * time.Hour))
 
 func main() {
 
