@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/allegro/bigcache"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/allegro/bigcache"
 
 	"gopkg.in/h2non/bimg.v1"
 )
@@ -118,7 +119,7 @@ var cache, _ = bigcache.NewBigCache(bigcache.Config{
 	// cache will not allocate more memory than this limit, value in MB
 	// if value is reached then the oldest entries can be overridden for the new ones
 	// 0 value means no size limit
-	HardMaxCacheSize: 4096,
+	HardMaxCacheSize: 3072,
 	// callback fired when the oldest entry is removed because of its expiration time or no space left
 	// for the new entry, or because delete was called. A bitmask representing the reason will be returned.
 	// Default value is nil which means no callback and it prevents from unwrapping the oldest entry.
