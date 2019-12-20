@@ -18,7 +18,7 @@ func NewFileSystemImageSource(config *SourceConfig) ImageSource {
 }
 
 func (s *FileSystemImageSource) Matches(r *http.Request) bool {
-	return r.Method == "GET" && s.getFileParam(r) != ""
+	return r.Method == http.MethodGet && s.getFileParam(r) != ""
 }
 
 func (s *FileSystemImageSource) GetImage(r *http.Request) ([]byte, error) {
@@ -37,7 +37,7 @@ func (s *FileSystemImageSource) GetImage(r *http.Request) ([]byte, error) {
 
 func (s *FileSystemImageSource) buildPath(file string) (string, error) {
 	file = path.Clean(path.Join(s.Config.MountPath, file))
-	if strings.HasPrefix(file, s.Config.MountPath) == false {
+	if !strings.HasPrefix(file, s.Config.MountPath) {
 		return "", ErrInvalidFilePath
 	}
 	return file, nil

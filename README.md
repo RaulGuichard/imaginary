@@ -1,6 +1,4 @@
-# imaginary [![Build Status](https://travis-ci.org/h2non/imaginary.png)](https://travis-ci.org/h2non/imaginary) [![Docker](https://img.shields.io/badge/docker-h2non/imaginary-blue.svg)](https://hub.docker.com/r/h2non/imaginary/) [![Docker Registry](https://img.shields.io/docker/pulls/h2non/imaginary.svg)](https://hub.docker.com/r/h2non/imaginary/) [![Go Report Card](http://goreportcard.com/badge/h2non/imaginary)](http://goreportcard.com/report/h2non/imaginary) ![ImageLayers](https://badge.imagelayers.io/h2non/imaginary.svg)
-
-<img src="http://s14.postimg.org/8th71a201/imaginary_world.jpg" width="100%" />
+# imaginary [![Build Status](https://travis-ci.org/h2non/imaginary.png)](https://travis-ci.org/h2non/imaginary) [![Docker](https://img.shields.io/badge/docker-h2non/imaginary-blue.svg)](https://hub.docker.com/r/h2non/imaginary/) [![Docker Registry](https://img.shields.io/docker/pulls/h2non/imaginary.svg)](https://hub.docker.com/r/h2non/imaginary/) [![Go Report Card](http://goreportcard.com/badge/h2non/imaginary)](http://goreportcard.com/report/h2non/imaginary)
 
 **[Fast](#benchmarks) HTTP [microservice](http://microservices.io/patterns/microservices.html)** written in Go **for high-level image processing** backed by [bimg](https://github.com/h2non/bimg) and [libvips](https://github.com/jcupitt/libvips). `imaginary` can be used as private or public HTTP service for massive image processing with first-class support for [Docker](#docker) & [Heroku](#heroku).
 It's almost dependency-free and only uses [`net/http`](http://golang.org/pkg/net/http/) native package without additional abstractions for better [performance](#performance).
@@ -62,6 +60,7 @@ To get started, take a look the [installation](#installation) steps, [usage](#co
 - Configurable image area extraction
 - Embed/Extend image, supporting multiple modes (white, black, mirror, copy or custom background color)
 - Watermark (customizable by text)
+- Watermark image
 - Custom output color space (RGB, black/white...)
 - Format conversion (with additional quality/compression settings)
 - Info (image size, format, orientation, alpha...)
@@ -72,7 +71,7 @@ To get started, take a look the [installation](#installation) steps, [usage](#co
 
 - [libvips](https://github.com/jcupitt/libvips) 8.3+ (8.5+ recommended)
 - C compatible compiler such as gcc 4.6+ or clang 3.0+
-- Go 1.6+
+- Go 1.10+
 
 ## Installation
 
@@ -289,12 +288,13 @@ Usage:
   imaginary -path-prefix /api/v1
   imaginary -enable-url-source
   imaginary -disable-endpoints form,health,crop,rotate
-  imaginary -enable-url-source -allowed-origins http://localhost,http://server.com
+  imaginary -enable-url-source -allowed-origins http://localhost,http://server.com,http://*.example.org
   imaginary -enable-url-source -enable-auth-forwarding
   imaginary -enable-url-source -authorization "Basic AwDJdL2DbwrD=="
   imaginary -enable-placeholder
   imaginary -enable-url-source -placeholder ./placeholder.jpg
   imaginary -enable-url-signature -url-signature-key 4f46feebafc4b5e988f131c4ff8b5997
+  imaginary -enable-url-source -forward-headers X-Custom,X-Token
   imaginary -h | -help
   imaginary -v | -version
 
@@ -312,12 +312,13 @@ Options:
   -http-cache-ttl <num>     The TTL in seconds. Adds caching headers to locally served files.
   -http-read-timeout <num>  HTTP read timeout in seconds [default: 30]
   -http-write-timeout <num> HTTP write timeout in seconds [default: 30]
-  -enable-url-source        Restrict remote image source processing to certain origins (separated by commas)
+  -enable-url-source        Enable remote HTTP URL image source processing (?url=http://..)
   -enable-placeholder       Enable image response placeholder to be used in case of error [default: false]
   -enable-auth-forwarding   Forwards X-Forward-Authorization or Authorization header to the image source server. -enable-url-source flag must be defined. Tip: secure your server from public access to prevent attack vectors
+  -forward-headers          Forwards custom headers to the image source server. -enable-url-source flag must be defined.
   -enable-url-signature     Enable URL signature (URL-safe Base64-encoded HMAC digest) [default: false]
   -url-signature-key        The URL signature key (32 characters minimum)
-  -allowed-origins <urls>   Restrict remote image source processing to certain origins (separated by commas)
+  -allowed-origins <urls>   Restrict remote image source processing to certain origins (separated by commas). Note: Origins are validated against host *AND* path. 
   -max-allowed-size <bytes> Restrict maximum size of http image source (in bytes)
   -certfile <path>          TLS certificate file path
   -keyfile <path>           TLS private key file path
@@ -440,6 +441,19 @@ curl -O "http://localhost:8088/crop?width=500&height=200&gravity=smart&url=https
 
 ## HTTP API
 
+### Allowed Origins
+
+imaginary can be configured to block all requests for images with a src URL this is not specified in the `allowed-origins` list. Imaginary will validate that the remote url matches the hostname and path of at least one origin in allowed list. Perhaps the easiest way to show how this works is to show some examples.
+
+| `allowed-origins` setting | image url | is valid |
+| ------------------------- | --------- | -------- |
+| `--allowed-origins s3.amazonaws.com/some-bucket/` | `s3.amazonaws.com/some-bucket/images/image.png` | VALID |
+| `--allowed-origins s3.amazonaws.com/some-bucket/` | `s3.amazonaws.com/images/image.png` | NOT VALID (no matching basepath) |
+| `--allowed-origins *.amazonaws.com/some-bucket/` | `anysubdomain.amazonaws.com/some-bucket/images/image.png` | VALID |
+| `--allowed-origins *.amazonaws.com` | `anysubdomain.amazonaws.comimages/image.png` | VALID |
+| `--allowed-origins *.amazonaws.com` | `www.notaws.comimages/image.png` | NOT VALID (no matching host) |
+| `--allowed-origins *.amazonaws.com, foo.amazonaws.com/some-bucket/` | `bar.amazonaws.com/some-other-bucket/image.png` | VALID (matches first condition but not second) |
+
 ### Authorization
 
 imaginary supports a simple token-based API authorization.
@@ -525,11 +539,11 @@ Image measures are always in pixels, unless otherwise indicated.
 - **margin**      `int`   - Text area margin for watermark. Example: `50`
 - **dpi**         `int`   - DPI value for watermark. Example: `150`
 - **textwidth**   `int`   - Text area width for watermark. Example: `200`
-- **opacity**     `float` - Opacity level for watermark text. Default: `0.2`
+- **opacity**     `float` - Opacity level for watermark text or watermark image. Default: `0.2`
 - **flip**        `bool`  - Transform the resultant image with flip operation. Default: `false`
 - **flop**        `bool`  - Transform the resultant image with flop operation. Default: `false`
 - **force**       `bool`  - Force image transformation size. Default: `false`
-- **nocrop**      `bool`  - Disable crop transformation enabled by default by some operations. Default: `false`
+- **nocrop**      `bool`  - Disable crop transformation. Defaults depend on the operation
 - **noreplicate** `bool`  - Disable text replication in watermark. Defaults to `false`
 - **norotation**  `bool`  - Disable auto rotation based on EXIF orientation. Defaults to `false`
 - **noprofile**   `bool`  - Disable adding ICC profile metadata. Defaults to `false`
@@ -537,6 +551,7 @@ Image measures are always in pixels, unless otherwise indicated.
 - **text**        `string` - Watermark text content. Example: `copyright (c) 2189`
 - **font**        `string` - Watermark text font type and format. Example: `sans bold 12`
 - **color**       `string` - Watermark text RGB decimal base color. Example: `255,200,150`
+- **image**       `string` - Watermark image URL pointing to the remote HTTP server.
 - **type**        `string` - Specify the image format to output. Possible values are: `jpeg`, `png`, `webp` and `auto`. `auto` will use the preferred format requested by the client in the HTTP Accept header. A client can provide multiple comma-separated choices in `Accept` with the best being the one picked.
 - **gravity**     `string` - Define the crop operation gravity. Supported values are: `north`, `south`, `centre`, `west`, `east` and `smart`. Defaults to `centre`.
 - **file**        `string` - Use image from server local file path. In order to use this you must pass the `-mount=<dir>` flag.
@@ -549,6 +564,7 @@ Image measures are always in pixels, unless otherwise indicated.
 - **minampl**     `float`  - Minimum amplitude of the gaussian filter to use when blurring an image. Default: Example: `0.5`
 - **operations**  `json`   - Pipeline of image operation transformations defined as URL safe encoded JSON array. See [pipeline](#get--post-pipeline) endpoints for more details.
 - **sign**        `string` - URL signature (URL-safe Base64-encoded HMAC digest)
+- **aspectratio** `string` - Apply aspect ratio by giving either image's height or width. Exampe: `16:9`
 
 #### GET /
 Content-Type: `application/json`
@@ -637,6 +653,7 @@ Crop the image by a given width or height. Image ratio is maintained
 - minampl `float`
 - gravity `string`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 
 #### GET | POST /smartcrop
@@ -668,6 +685,7 @@ Crop the image by a given width or height using the [libvips](https://github.com
 - minampl `float`
 - gravity `string`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 #### GET | POST /resize
 Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
@@ -686,6 +704,7 @@ Resize an image by width or height. Image aspect ratio is maintained
 - embed `bool`
 - force `bool`
 - rotate `int`
+- nocrop `bool` - Defaults to `true`
 - norotation `bool`
 - noprofile `bool`
 - stripmeta `bool`
@@ -697,6 +716,7 @@ Resize an image by width or height. Image aspect ratio is maintained
 - sigma `float`
 - minampl `float`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 #### GET | POST /enlarge
 Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
@@ -713,6 +733,7 @@ Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 - embed `bool`
 - force `bool`
 - rotate `int`
+- nocrop `bool` - Defaults to `false`
 - norotation `bool`
 - noprofile `bool`
 - stripmeta `bool`
@@ -755,6 +776,7 @@ Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 - sigma `float`
 - minampl `float`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 #### GET | POST /zoom
 Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
@@ -772,6 +794,7 @@ Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 - embed `bool`
 - force `bool`
 - rotate `int`
+- nocrop `bool` - Defaults to `true`
 - norotation `bool`
 - noprofile `bool`
 - stripmeta `bool`
@@ -783,14 +806,15 @@ Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 - sigma `float`
 - minampl `float`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 #### GET | POST /thumbnail
 Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 
 ##### Allowed params
 
-- width `int`
-- height `int`
+- width `int` `required`
+- height `int` `required`
 - quality `int` (JPEG-only)
 - compression `int` (PNG-only)
 - type `string`
@@ -810,6 +834,7 @@ Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 - sigma `float`
 - minampl `float`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 #### GET | POST /fit
 Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
@@ -840,6 +865,7 @@ The width and height specify a maximum bounding box for the image.
 - sigma `float`
 - minampl `float`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 #### GET | POST /rotate
 Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
@@ -867,6 +893,7 @@ Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 - sigma `float`
 - minampl `float`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 #### GET | POST /flip
 Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
@@ -893,6 +920,7 @@ Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 - sigma `float`
 - minampl `float`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 #### GET | POST /flop
 Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
@@ -919,6 +947,7 @@ Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 - sigma `float`
 - minampl `float`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 #### GET | POST /convert
 Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
@@ -944,6 +973,7 @@ Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 - sigma `float`
 - minampl `float`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 #### GET | POST /pipeline
 Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
@@ -995,6 +1025,7 @@ Self-documented JSON operation schema:
 - **zoom** - Same as [`/zoom`](#get--post-zoom) endpoint.
 - **convert** - Same as [`/convert`](#get--post-convert) endpoint.
 - **watermark** - Same as [`/watermark`](#get--post-watermark) endpoint.
+- **watermarkImage** - Same as [`/watermarkimage`](#get--post-watermarkimage) endpoint.
 - **blur** - Same as [`/blur`](#get--post-blur) endpoint.
 
 ###### Example
@@ -1065,6 +1096,35 @@ Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 - minampl `float`
 - field `string` - Only POST and `multipart/form` payloads
 
+#### GET | POST /watermarkimage
+Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
+
+##### Allowed params
+
+- image `string` `required` - URL to watermark image, example: `?image=https://logo-server.com/logo.jpg`
+- top `int` - Top position of the watermark image
+- left `int` - Left position of the watermark image
+- opacity `float` - Opacity value of the watermark image
+- quality `int` (JPEG-only)
+- compression `int` (PNG-only)
+- type `string`
+- file `string` - Only GET method and if the `-mount` flag is present
+- url `string` - Only GET method and if the `-enable-url-source` flag is present
+- embed `bool`
+- force `bool`
+- rotate `int`
+- norotation `bool`
+- noprofile `bool`
+- stripmeta `bool`
+- flip `bool`
+- flop `bool`
+- extend `string`
+- background `string` - Example: `?background=250,20,10`
+- colorspace `string`
+- sigma `float`
+- minampl `float`
+- field `string` - Only POST and `multipart/form` payloads
+
 #### GET | POST /blur
 Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 
@@ -1090,6 +1150,7 @@ Accepts: `image/*, multipart/form-data`. Content-Type: `image/*`
 - background `string` - Example: `?background=250,20,10`
 - colorspace `string`
 - field `string` - Only POST and `multipart/form` payloads
+- aspectratio `string`
 
 ## Support
 

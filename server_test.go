@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -77,7 +78,7 @@ func TestCrop(t *testing.T) {
 func TestResize(t *testing.T) {
 	ts := testServer(controller(Resize))
 	buf := readFile("large.jpg")
-	url := ts.URL + "?width=300"
+	url := ts.URL + "?width=300&nocrop=false"
 	defer ts.Close()
 
 	res, err := http.Post(url, "image/jpeg", buf)
@@ -191,7 +192,7 @@ func TestTypeAuto(t *testing.T) {
 		url := ts.URL + "?width=300&type=auto"
 		defer ts.Close()
 
-		req, _ := http.NewRequest("POST", url, buf)
+		req, _ := http.NewRequest(http.MethodPost, url, buf)
 		req.Header.Add("Content-Type", "image/jpeg")
 		req.Header.Add("Accept", test.acceptHeader)
 		res, err := http.DefaultClient.Do(req)
@@ -231,12 +232,20 @@ func TestTypeAuto(t *testing.T) {
 }
 
 func TestFit(t *testing.T) {
-	ts := testServer(controller(Fit))
+	var err error
+
 	buf := readFile("large.jpg")
+	original, _ := ioutil.ReadAll(buf)
+	err = assertSize(original, 1920, 1080)
+	if err != nil {
+		t.Errorf("Reference image expecations weren't met")
+	}
+
+	ts := testServer(controller(Fit))
 	url := ts.URL + "?width=300&height=300"
 	defer ts.Close()
 
-	res, err := http.Post(url, "image/jpeg", buf)
+	res, err := http.Post(url, "image/jpeg", bytes.NewReader(original))
 	if err != nil {
 		t.Fatal("Cannot perform the request")
 	}
@@ -253,7 +262,8 @@ func TestFit(t *testing.T) {
 		t.Fatalf("Empty response body")
 	}
 
-	err = assertSize(image, 300, 168)
+	// The reference image has a ratio of 1.778, this should produce a height of 168.75
+	err = assertSize(image, 300, 169)
 	if err != nil {
 		t.Error(err)
 	}
@@ -416,7 +426,7 @@ func assertSize(buf []byte, width, height int) error {
 		return err
 	}
 	if size.Width != width || size.Height != height {
-		return fmt.Errorf("Invalid image size: %dx%d", size.Width, size.Height)
+		return fmt.Errorf("Invalid image size: %dx%d, expected: %dx%d", size.Width, size.Height, width, height)
 	}
 	return nil
 }

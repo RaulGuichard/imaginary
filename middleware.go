@@ -1,13 +1,13 @@
 package main
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 
 	"github.com/rs/cors"
 	"gopkg.in/h2non/bimg.v1"
@@ -39,9 +39,9 @@ func Middleware(fn func(http.ResponseWriter, *http.Request), o ServerOptions) ht
 
 func ImageMiddleware(o ServerOptions) func(Operation) http.Handler {
 	return func(fn Operation) http.Handler {
-		handler := validateImage(Middleware(imageController(o, Operation(fn)), o), o)
+		handler := validateImage(Middleware(imageController(o, fn), o), o)
 
-		if o.EnableURLSignature == true {
+		if o.EnableURLSignature {
 			return validateURLSignature(handler, o)
 		}
 
@@ -71,7 +71,7 @@ func throttle(next http.Handler, o ServerOptions) http.Handler {
 		return throttleError(err)
 	}
 
-	quota := throttled.RateQuota{throttled.PerSec(o.Concurrency), o.Burst}
+	quota := throttled.RateQuota{MaxRate: throttled.PerSec(o.Concurrency), MaxBurst: o.Burst}
 	rateLimiter, err := throttled.NewGCRARateLimiter(store, quota)
 	if err != nil {
 		return throttleError(err)
@@ -87,7 +87,7 @@ func throttle(next http.Handler, o ServerOptions) http.Handler {
 
 func validate(next http.Handler, o ServerOptions) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" && r.Method != "POST" {
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
 			ErrorReply(r, w, ErrMethodNotAllowed, o)
 			return
 		}
@@ -99,12 +99,12 @@ func validate(next http.Handler, o ServerOptions) http.Handler {
 func validateImage(next http.Handler, o ServerOptions) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if r.Method == "GET" && isPublicPath(path) {
+		if r.Method == http.MethodGet && isPublicPath(path) {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		if r.Method == "GET" && o.Mount == "" && o.EnableURLSource == false {
+		if r.Method == http.MethodGet && o.Mount == "" && !o.EnableURLSource {
 			ErrorReply(r, w, ErrMethodNotAllowed, o)
 			return
 		}
@@ -121,7 +121,7 @@ func authorizeClient(next http.Handler, o ServerOptions) http.Handler {
 		}
 
 		if key != o.APIKey {
-			ErrorReply(r, w, ErrInvalidApiKey, o)
+			ErrorReply(r, w, ErrInvalidAPIKey, o)
 			return
 		}
 
@@ -140,7 +140,7 @@ func setCacheHeaders(next http.Handler, ttl int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer next.ServeHTTP(w, r)
 
-		if r.Method != "GET" || isPublicPath(r.URL.Path) {
+		if r.Method != http.MethodGet || isPublicPath(r.URL.Path) {
 			return
 		}
 
@@ -182,7 +182,7 @@ func validateURLSignature(next http.Handler, o ServerOptions) http.Handler {
 			return
 		}
 
-		if hmac.Equal(urlSign, expectedSign) == false {
+		if !hmac.Equal(urlSign, expectedSign) {
 			ErrorReply(r, w, ErrURLSignatureMismatch, o)
 			return
 		}

@@ -33,13 +33,14 @@ var (
 	aEnablePlaceholder  = flag.Bool("enable-placeholder", false, "Enable image response placeholder to be used in case of error")
 	aEnableURLSignature = flag.Bool("enable-url-signature", false, "Enable URL signature (URL-safe Base64-encoded HMAC digest)")
 	aURLSignatureKey    = flag.String("url-signature-key", "", "The URL signature key (32 characters minimum)")
-	aAllowedOrigins     = flag.String("allowed-origins", "", "Restrict remote image source processing to certain origins (separated by commas)")
+	aAllowedOrigins     = flag.String("allowed-origins", "", "Restrict remote image source processing to certain origins (separated by commas). Note: Origins are validated against host *AND* path.")
 	aMaxAllowedSize     = flag.Int("max-allowed-size", 0, "Restrict maximum size of http image source (in bytes)")
 	aKey                = flag.String("key", "", "Define API key for authorization")
 	aMount              = flag.String("mount", "", "Mount server local directory")
 	aCertFile           = flag.String("certfile", "", "TLS certificate file path")
 	aKeyFile            = flag.String("keyfile", "", "TLS private key file path")
 	aAuthorization      = flag.String("authorization", "", "Defines a constant Authorization header value passed to all the image source servers. -enable-url-source flag must be defined. This overwrites authorization headers forwarding behavior via X-Forward-Authorization")
+	aForwardHeaders     = flag.String("forward-headers", "", "Forwards custom headers to the image source server. -enable-url-source flag must be defined.")
 	aPlaceholder        = flag.String("placeholder", "", "Image path to image custom placeholder to be used in case of error. Recommended minimum image size is: 1200x1200")
 	aDisableEndpoints   = flag.String("disable-endpoints", "", "Comma separated endpoints to disable. E.g: form,crop,rotate,health")
 	aHTTPCacheTTL       = flag.Int("http-cache-ttl", -1, "The TTL in seconds")
@@ -66,6 +67,7 @@ Usage:
   imaginary -enable-placeholder
   imaginary -enable-url-source -placeholder ./placeholder.jpg
   imaginary -enable-url-signature -url-signature-key 4f46feebafc4b5e988f131c4ff8b5997
+  imaginary -enable-url-source -forward-headers X-Custom,X-Token
   imaginary -h | -help
   imaginary -v | -version
 
@@ -83,9 +85,10 @@ Options:
   -http-cache-ttl <num>     The TTL in seconds. Adds caching headers to locally served files.
   -http-read-timeout <num>  HTTP read timeout in seconds [default: 30]
   -http-write-timeout <num> HTTP write timeout in seconds [default: 30]
-  -enable-url-source        Restrict remote image source processing to certain origins (separated by commas)
+  -enable-url-source        Enable remote HTTP URL image source processing
   -enable-placeholder       Enable image response placeholder to be used in case of error [default: false]
   -enable-auth-forwarding   Forwards X-Forward-Authorization or Authorization header to the image source server. -enable-url-source flag must be defined. Tip: secure your server from public access to prevent attack vectors
+  -forward-headers          Forwards custom headers to the image source server. -enable-url-source flag must be defined.
   -enable-url-signature     Enable URL signature (URL-safe Base64-encoded HMAC digest) [default: false]
   -url-signature-key        The URL signature key (32 characters minimum)
   -allowed-origins <urls>   Restrict remote image source processing to certain origins (separated by commas)
@@ -174,6 +177,7 @@ func main() {
 		HTTPReadTimeout:    *aReadTimeout,
 		HTTPWriteTimeout:   *aWriteTimeout,
 		Authorization:      *aAuthorization,
+		ForwardHeaders:     parseForwardHeaders(*aForwardHeaders),
 		AllowedOrigins:     parseOrigins(*aAllowedOrigins),
 		MaxAllowedSize:     *aMaxAllowedSize,
 	}
@@ -195,7 +199,7 @@ func main() {
 
 	// Validate HTTP cache param, if present
 	if *aHTTPCacheTTL != -1 {
-		checkHttpCacheTtl(*aHTTPCacheTTL)
+		checkHTTPCacheTTL(*aHTTPCacheTTL)
 	}
 
 	// Parse endpoint names to disabled, if present
@@ -222,7 +226,7 @@ func main() {
 	}
 
 	// Check URL signature key, if required
-	if *aEnableURLSignature == true {
+	if *aEnableURLSignature {
 		if urlSignature.Key == "" {
 			exitWithError("URL signature key is required")
 		}
@@ -277,7 +281,7 @@ func checkMountDirectory(path string) {
 	if err != nil {
 		exitWithError("error while mounting directory: %s", err)
 	}
-	if src.IsDir() == false {
+	if !src.IsDir() {
 		exitWithError("mount path is not a directory: %s", path)
 	}
 	if path == "/" {
@@ -285,8 +289,8 @@ func checkMountDirectory(path string) {
 	}
 }
 
-func checkHttpCacheTtl(ttl int) {
-	if ttl < -1 || ttl > 31556926 {
+func checkHTTPCacheTTL(ttl int) {
+	if ttl < 0 || ttl > 31556926 {
 		exitWithError("The -http-cache-ttl flag only accepts a value from 0 to 31556926")
 	}
 
@@ -295,8 +299,22 @@ func checkHttpCacheTtl(ttl int) {
 	}
 }
 
+func parseForwardHeaders(forwardHeaders string) []string {
+	var headers []string
+	if forwardHeaders == "" {
+		return headers
+	}
+
+	for _, header := range strings.Split(forwardHeaders, ",") {
+		if norm := strings.TrimSpace(header); norm != "" {
+			headers = append(headers, norm)
+		}
+	}
+	return headers
+}
+
 func parseOrigins(origins string) []*url.URL {
-	urls := []*url.URL{}
+	var urls []*url.URL
 	if origins == "" {
 		return urls
 	}
@@ -305,13 +323,18 @@ func parseOrigins(origins string) []*url.URL {
 		if err != nil {
 			continue
 		}
+
+		if u.Path != "" && u.Path[len(u.Path)-1:] != "/" {
+			u.Path += "/"
+		}
+
 		urls = append(urls, u)
 	}
 	return urls
 }
 
 func parseEndpoints(input string) Endpoints {
-	endpoints := Endpoints{}
+	var endpoints Endpoints
 	for _, endpoint := range strings.Split(input, ",") {
 		endpoint = strings.ToLower(strings.TrimSpace(endpoint))
 		if endpoint != "" {
@@ -332,7 +355,7 @@ func memoryRelease(interval int) {
 }
 
 func exitWithError(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, format+"\n", args)
+	_, _ = fmt.Fprintf(os.Stderr, format+"\n", args)
 	os.Exit(1)
 }
 
